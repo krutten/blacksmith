@@ -82,9 +82,9 @@ func UploadReleasesFromManifest(raw string, bosh *gogobosh.Client, l *Log) error
 		if have[rl.Name+"/"+rl.Version] {
 			l.Debug("already have %s/%s; skipping upload", rl.Name, rl.Version)
 		} else if rl.URL == "" {
-			l.Debug("%s/%s is missing either its URL; skipping upload")
+			l.Debug("%s/%s is missing either its URL; skipping upload", rl.Name, rl.Version)
 		} else if rl.SHA1 == "" {
-			l.Debug("%s/%s is missing either its SHA1 checksum; skipping upload")
+			l.Debug("%s/%s is missing either its SHA1 checksum; skipping upload", rl.Name, rl.Version)
 		} else {
 			l.Debug("uploading BOSH release %s/%s from %s (sha1 %s)...", rl.Name, rl.Version, rl.URL, rl.SHA1)
 			_, err := bosh.UploadRelease(rl.URL, rl.SHA1)
