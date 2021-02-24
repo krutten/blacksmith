@@ -263,7 +263,7 @@ func (vault *Vault) Get(path string, out interface{}) (bool, error) {
 	if err != nil {
 		return exists, fmt.Errorf("could not remarshal vault data")
 	}
-	
+
 	err = json.Unmarshal(dataBytes, &out)
 	return exists, err
 }
@@ -371,6 +371,57 @@ func (vault *Vault) Index(instanceID string, data interface{}) error {
 	return err
 }
 
+func (vault *Vault) StoreState(instanceID string, manifest map[interface{}]interface{}, credentials map[interface{}]interface{}, params map[interface{}]interface{}, initScriptPath string, upgradeScriptPath string) error {
+
+	l := Logger.Wrap("vault store %s", instanceID)
+	l.Debug("Storing files for plan")
+
+	initFile, err := ioutil.ReadFile(initScriptPath)
+	if err != nil {
+		initFile = nil
+	}
+
+	upgradeFile, err := ioutil.ReadFile(upgradeScriptPath)
+	if err != nil {
+		upgradeFile = nil
+	}
+
+	state := struct {
+		Manifest      interface{} `json:"manifest"`
+		Credentials   interface{} `json:"credentials"`
+		Params        interface{} `json:"params"`
+		InitScript    string      `json:"init"`
+		UpgradeScript string      `json:"upgrade"`
+	}{deinterface(manifest), deinterface(credentials), deinterface(params), string(initFile), string(upgradeFile)}
+
+	return vault.Put(fmt.Sprintf("%s/state", instanceID), state)
+}
+
+func (vault *Vault) RestoreState(instanceID string) (map[interface{}]interface{}, map[interface{}]interface{}, map[interface{}]interface{}, string, string, error) {
+	l := Logger.Wrap("vault restore %s", instanceID)
+	state := struct {
+		Manifest      map[string]interface{} `json:"manifest"`
+		Credentials   map[string]interface{} `json:"credentials"`
+		Params        map[string]interface{} `json:"params"`
+		InitScript    string                 `json:"init"`
+		UpgradeScript string                 `json:"upgrade"`
+	}{}
+
+	manifest := make(map[interface{}]interface{})
+	credentials := make(map[interface{}]interface{})
+	params := make(map[interface{}]interface{})
+	initFile := ""
+	upgradeFile := ""
+
+	exists, err := vault.Get(fmt.Sprintf("%s/state", instanceID), &state)
+	if err != nil || !exists {
+		l.Error("unable to find service instance %s in vault index", instanceID)
+		return manifest, credentials, params, initFile, upgradeFile, err
+	}
+
+	return manifest, credentials, params, initFile, upgradeFile, nil
+}
+
 type Instance struct {
 	ID        string
 	ServiceID string
@@ -409,8 +460,8 @@ func (vault *Vault) FindInstance(id string) (*Instance, bool, error) {
 
 func (vault *Vault) State(instanceID string) (string, int, map[string]interface{}, error) {
 	type TaskState struct {
-		Action string `json:"action"`
-		Task   int  `json:"task"`
+		Action string                 `json:"action"`
+		Task   int                    `json:"task"`
 		Params map[string]interface{} `json:"params"`
 	}
 
